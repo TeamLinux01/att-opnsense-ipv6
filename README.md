@@ -20,43 +20,57 @@ I welcome improvements and feedback and will be happy to update this to help mak
 
 Once this script is in place, if you need to reassign interfaces & prefix delegations, the script has to be updated. You will need to edit the IPv6 Track Interface Prefix ID on the LAN/OPT interfaces with the IA-PD you specify in the .conf file. 
 
-# Assumptions
+# Steps for OpnSense **NOTE: this is a work in progress, this line will be removed once finished**
 
-1. The WAN interface IPv6 Configuration type is configured for "none" or, 
+## Example config file for request 2 Prefix Delegations of /64
 
-2. The WAN interface IPv6 Configuration type is configured for DHCP6 and IPv6 Prefix Delegation is set /60 
-
-3. The WAN interface IPv6 DHCP6 Client Option "Do not allow PD/Address release" is UNCHECKED 
-
-4. The LAN/OPT interfaces' DHCP6 option is set to "none" 
-
-5. DHCPv6 Server & RA -> DHCP6 Server -> Disabled 
-
-6. DHCPv6 Server & RA -> Router Advertisements -> Defaults (Router Mode: Assisted) 
-
-# Steps 
-### 1. Make a local copy of the code below 
+### /usr/local/etc/rc.d/dhcpv6_wan-dp.conf
+**NOTE: replace igb0 with the WAN interface assignment of your setup and igb1 with thhe LAN interface assignment**
 ```
-interface *WANInterface* {
-	send ia-na 0;
-	send ia-pd 0;
-	send ia-pd 1;
-	send ia-pd 2;
-	send ia-pd 3;
-	send ia-pd 4;
-	send ia-pd 5;
-        send ia-pd 6;
-	send ia-pd 7;
-	request domain-name-servers;
-	request domain-name;
-	script "/var/etc/dhcp6c_wan_script.sh";
+interface igb0 {
+  send ia-na 0; # request stateful address
+  send ia-pd 0; # request prefix delegation
+  send ia-pd 1; # request another prefix delegation
+  request domain-name-servers;
+  request domain-name;
+  script "/var/etc/dhcp6c_wan_script.sh"; # we'd like some nameservers please
 };
 id-assoc na 0 { };
 id-assoc pd 0 {
-	prefix-interface *LANInterface* {
-		sla-id 0;
-		sla-len 0;
-	};
+  prefix-interface igb1 {
+    sla-id 0;
+    sla-len 0;
+  };
+};
+id-assoc pd 1 { };
+
+``` 
+
+## Example config file for requesting all 8 Prefix Delgations of /64
+
+###/usr/local/etc/rc.d/dhcpv6_wan-dp.conf
+**NOTE: replace igb0 with the WAN interface assignment of your setup and igb1 with thhe LAN interface assignment**
+```
+interface igb0 {
+  send ia-na 0; # request stateful address
+  send ia-pd 0; # request prefix delegation
+  send ia-pd 1; # request another prefix delegation
+  send ia-pd 2; # request another prefix delegation
+  send ia-pd 3; # request another prefix delegation
+  send ia-pd 4; # request another prefix delegation
+  send ia-pd 5; # request another prefix delegation
+  send ia-pd 6; # request another prefix delegation
+  send ia-pd 7; # request another prefix delegation
+  request domain-name-servers;
+  request domain-name;
+  script "/var/etc/dhcp6c_wan_script.sh"; # we'd like some nameservers please
+};
+id-assoc na 0 { };
+id-assoc pd 0 {
+  prefix-interface igb1 {
+    sla-id 0;
+    sla-len 0;
+  };
 };
 id-assoc pd 1 { };
 id-assoc pd 2 { };
@@ -65,14 +79,13 @@ id-assoc pd 4 { };
 id-assoc pd 5 { };
 id-assoc pd 6 { };
 id-assoc pd 7 { };
-
 ``` 
 
 ### 2. Update the "interface" stanza (Line 1)
 
 	- Look at Interfaces -> Assignments -> Network Port for the adapter associated to the WAN interface 
 
-	- Replace the *WANInterface* in the interface stanza (Line 1) below with the WAN adapter network port name below, e.g. hn0, igb0, vmx0, eth0, etc 
+	- Replace the *igb0* in the interface stanza (Line 1) below with the WAN adapter network port name below, e.g. hn0, igb0, vmx0, eth0, etc 
 
 	- If using VLANs, remember to use numerical subinterface number e.g. hn0.10 for VLAN 10 
 
@@ -82,7 +95,7 @@ id-assoc pd 7 { };
 
 	Look at Interfaces -> Assignments -> Network Port for the adapter associated to each LAN/OPT interface(s) 
 
-	Replace the prefix-interface *LANINTERFACEX* with LAN/OPT adapter network port name 
+	Replace the prefix-interface *igb1* with LAN/OPT adapter network port name 
 		[Uncomment Stanzas if you need more than one interface.]
 
 	If using VLANs, remember to use numerical subinterface number e.g. hn0.10 for VLAN 10 
@@ -120,13 +133,11 @@ id-assoc pd 7 { };
 
 ### 5. Edit the WAN interface
 
-	- Set IPv6 Configuration Type to "DHCP6" (it may already be set, see "assumptions" above) 
-
-	- Under DHCP6 client configuration, change DHCPv6 Prefix Delegation size from 64 to 60
+	- Set IPv6 Configuration Type to "DHCP6"
 
 	- Under DHCP6 client configuration, select Configuration Override 
 
-	- Enter the following in Configuration File Override: /usr/local/etc/rc.d/att-rg-dhcpv6-pd.conf 
+	- Enter the following in Configuration File Override: `/usr/local/etc/rc.d/dhcpv6_wan-dp.conf`
 
 	- Click on Save and Apply the changes 
 
@@ -136,26 +147,11 @@ id-assoc pd 7 { };
 
 	- Set the Track IPv6 Interface -> IPv6 Interface to the WAN's interface name ("WAN" is the default name) 
 
-	- Set the IPv6 Prefix ID to the PD number configured in the .conf file 
+	- Set the IPv6 Prefix ID to the PD number configured in the .conf file (LAN will be set to 0)
 
 	- Click on Save and Apply the changes 
 
-### 7. Enable pfSense DHCPv6 Server & Test
-
-	- For each configured interface.. 
-
-	- DHCPv6 Range of :: to ::ffff:ffff:ffff:ffff works, however feel free to set your own range.
-	
-	- DHCPv6 Server & RA -> DHCPv6 Server -> Enable -> Save 
-	
-	- DHCPv6 Server & RA -> Router Advertisements -> Router Mode -> Managed 
-
-	- Test a client in each configured, connected network 
-
-
-
 # State Limits
-
 
 AT&T Residential gateways have a state table that is far smaller than pfSense's defaults, which can result in problems once the RG begins tracking more states than available. pfSense should be set to never go above that limit. pfSense will adjust how states are managed based on its default adaptive algorithm from "Firewall Adaptive Timeouts." There is no need to adjust pfSense default Adaptive Timeout behavior, only the maximum number of states pfSesnse can use.
 
